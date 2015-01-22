@@ -94,6 +94,7 @@
 #include "LPC11xx.h"
 
 #include "driver_config.h"
+#include "debug_printf.h"
 
 /* Set mainCREATE_SIMPLE_BLINKY_DEMO_ONLY to one to run the simple blinky demo,
 or 0 to run the more comprehensive test and demo application. */
@@ -113,6 +114,10 @@ tick interrupt next executes. */
 #if mainCHECK_INTERRUPT_STACK == 1
 	const unsigned char ucExpectedInterruptStackValues[] = { 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC };
 #endif
+
+
+#define ERRMSG	debug_printf("Error: %s", __func__)
+
 
 /*-----------------------------------------------------------*/
 
@@ -205,6 +210,9 @@ unsigned long ulInterruptStackSize;
 	use can be manually checked. */
 	memcpy( ( void * ) _pvHeapStart, ucExpectedInterruptStackValues, sizeof( ucExpectedInterruptStackValues ) );
         UARTInit(UART_BAUD);
+
+	GPIOInit();
+
 }
 /*-----------------------------------------------------------*/
 
@@ -221,6 +229,7 @@ void vApplicationMallocFailedHook( void )
 	to query the size of free heap space that remains (although it does not
 	provide information on how the remaining heap might be fragmented). */
 	taskDISABLE_INTERRUPTS();
+	ERRMSG;
 	for( ;; );
 }
 /*-----------------------------------------------------------*/
@@ -248,6 +257,7 @@ void vApplicationStackOverflowHook( TaskHandle_t pxTask, char *pcTaskName )
 	configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2.  This hook
 	function is called if a stack overflow is detected. */
 	taskDISABLE_INTERRUPTS();
+	ERRMSG;
 	for( ;; );
 }
 /*-----------------------------------------------------------*/

@@ -23,6 +23,10 @@
 #if CONFIG_ENABLE_DRIVER_GPIO==1
 #include "gpio.h"
 
+#include "FreeRTOS.h"
+#include "semphr.h"
+
+#if 0
 #if CONFIG_GPIO_DEFAULT_PIOINT0_IRQHANDLER==1
 volatile uint32_t gpio0_counter = 0;
 volatile uint32_t p0_2_counter  = 0;
@@ -48,6 +52,11 @@ void PIOINT0_IRQHandler(void)
   }		
   return;
 }
+#endif
+#else
+
+
+
 #endif
 
 #if CONFIG_GPIO_DEFAULT_PIOINT1_IRQHANDLER==1

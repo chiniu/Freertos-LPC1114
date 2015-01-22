@@ -108,13 +108,16 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
+#include "semphr.h"
 #include "driver_config.h"
 #include "debug_printf.h"
 
 /* Hardware specific includes. */
 #include "LPC11xx.h"
+#include "gpio.h"
 
 /* Priorities at which the tasks are created. */
+#define mainHall_RECEIVE_TASK_PRIORITY		( tskIDLE_PRIORITY + 3 )
 #define mainQUEUE_RECEIVE_TASK_PRIORITY		( tskIDLE_PRIORITY + 2 )
 #define	mainQUEUE_SEND_TASK_PRIORITY		( tskIDLE_PRIORITY + 1 )
 
@@ -131,6 +134,7 @@ the queue empty. */
 functionality. */
 #define mainQUEUE_SEND_PARAMETER			( 0x1111UL )
 #define mainQUEUE_RECEIVE_PARAMETER			( 0x22UL )
+#define mainHall_RECEIVE_PARAMETER			( 0x555UL )
 /*-----------------------------------------------------------*/
 
 /*
@@ -138,6 +142,7 @@ functionality. */
  */
 static void prvQueueReceiveTask( void *pvParameters );
 static void prvQueueSendTask( void *pvParameters );
+static void prvHallTask( void *pvParameters );
 
 /*
  * Called by main() to create the simply blinky style application if
@@ -154,6 +159,7 @@ extern void vMainToggleLED( void );
 
 /* The queue used by both tasks. */
 static QueueHandle_t xQueue = NULL;
+static SemaphoreHandle_t xSem = NULL;
 
 /*-----------------------------------------------------------*/
 
@@ -161,9 +167,12 @@ void main_blinky( void )
 {
 	/* Create the queue. */
 	xQueue = xQueueCreate( mainQUEUE_LENGTH, sizeof( unsigned long ) );
+
+	xSem = xSemaphoreCreateMutex();
+
         debug_printf("blinky start!\n");
 
-	if( xQueue != NULL )
+	if( xQueue != NULL & xSem != NULL)
 	{
 		/* Start the two tasks as described in the comments at the top of this
 		file. */
@@ -175,6 +184,9 @@ void main_blinky( void )
 					NULL );									/* The task handle is not required, so NULL is passed. */
 
 		xTaskCreate( prvQueueSendTask, "TX", configMINIMAL_STACK_SIZE, ( void * ) mainQUEUE_SEND_PARAMETER, mainQUEUE_SEND_TASK_PRIORITY, NULL );
+
+
+		xTaskCreate(prvHallTask, "Hall", configMINIMAL_STACK_SIZE, ( void * ) mainHall_RECEIVE_PARAMETER, mainHall_RECEIVE_TASK_PRIORITY, NULL); 
 
 		/* Start the tasks and timer running. */
 		vTaskStartScheduler();
@@ -241,4 +253,61 @@ unsigned long ulReceivedValue;
 	}
 }
 /*-----------------------------------------------------------*/
+
+volatile uint32_t gpio0_counter = 0;
+volatile uint32_t p0_2_counter  = 0;
+
+static void prvHallTask( void *pvParameters )
+{
+	unsigned long ulReceivedValue;
+	uint32_t cnt = 0;
+
+
+	/* Check the task parameter is as expected. */
+	configASSERT( ( ( unsigned long ) pvParameters ) == mainHall_RECEIVE_PARAMETER );
+        debug_printf("Hall task start!\n");
+	xSemaphoreTake(xSem, portMAX_DELAY);
+
+	LPC_IOCON->PIO0_2 = 0; 
+	GPIOSetDir(PORT0, 2, 0);
+	GPIOSetInterrupt(PORT0, 2, 0, 0, 1);
+	GPIOIntEnable(PORT0, 2); 
+
+
+	for( ;; )
+	{
+		while(!xSemaphoreTake(xSem, portMAX_DELAY));
+		debug_printf("Hall senser trigger\n");
+		if(p0_2_counter != cnt){
+			debug_printf("XXXX!\n");
+			cnt = p0_2_counter;
+		}
+		GPIOIntEnable(PORT0, 2); 
+	}
+}
+/*-----------------------------------------------------------*/
+
+
+void PIOINT0_IRQHandler(void)
+{
+
+  long lHigherPriorityTaskWoken = pdFALSE;
+
+	/* Clear the interrupt if necessary. */
+  uint32_t regVal;
+
+  GPIOIntDisable(PORT0, 2);
+
+  gpio0_counter++;
+  regVal = GPIOIntStatus( PORT0, 2 );
+  if ( !regVal )
+  {
+	p0_2_counter++;
+	GPIOIntClear( PORT0, 2 );
+  }		
+  xSemaphoreGiveFromISR( xSem, &lHigherPriorityTaskWoken );
+
+  portEND_SWITCHING_ISR( lHigherPriorityTaskWoken );
+}
+
 

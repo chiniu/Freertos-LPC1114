@@ -48,7 +48,8 @@ AS_DEFS =
 
 # include directories (absolute or relative paths to additional folders with
 # headers, current folder is always included)
-INC_DIRS = ./Common_Demo_Tasks/inc ./CMSISv2p00_LPC11xx/inc ./RTOSDemo/inc ./FreeRTOS/inc ./FreeRTOS/portable/GCC/ARM_CM0
+INC_DIRS = ./Common_Demo_Tasks/inc ./CMSISv2p00_LPC11xx/inc ./RTOSDemo/inc ./FreeRTOS/inc ./FreeRTOS/portable/GCC/ARM_CM0 \
+           ./driver ./lib_small_printf_m0/inc
 
 # library directories (absolute or relative paths to additional folders with
 # libraries)
@@ -60,7 +61,8 @@ LIBS =
 
 # additional directories with source files (absolute or relative paths to
 # folders with source files, current folder is always included)
-SRCS_DIRS = ./CMSISv2p00_LPC11xx/src ./Common_Demo_Tasks/src ./FreeRTOS/src ./RTOSDemo/src ./FreeRTOS/portable/GCC/ARM_CM0 ./FreeRTOS/portable/MemMang
+SRCS_DIRS = ./CMSISv2p00_LPC11xx/src ./Common_Demo_Tasks/src ./FreeRTOS/src ./RTOSDemo/src ./FreeRTOS/portable/GCC/ARM_CM0 \
+            ./FreeRTOS/portable/MemMang ./driver ./lib_small_printf_m0/src
 
 # extension of C++ files
 CXX_EXT = cpp
@@ -296,11 +298,15 @@ else
 	@echo 'Nothing to remove...'
 endif
 
+flash:
+	@echo flash device
+	lpc21isp.out -control -hex ./out/lpc1114_freertos.hex  /dev/ttyUSB0 115200 12000
+
 #=============================================================================#
 # global exports
 #=============================================================================#
 
-.PHONY: all clean dependents
+.PHONY: all clean dependents flash
 
 .SECONDARY:
 

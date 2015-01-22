@@ -108,6 +108,8 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
+#include "driver_config.h"
+#include "debug_printf.h"
 
 /* Hardware specific includes. */
 #include "LPC11xx.h"
@@ -159,6 +161,7 @@ void main_blinky( void )
 {
 	/* Create the queue. */
 	xQueue = xQueueCreate( mainQUEUE_LENGTH, sizeof( unsigned long ) );
+        debug_printf("blinky start!\n");
 
 	if( xQueue != NULL )
 	{

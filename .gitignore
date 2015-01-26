@@ -34,3 +34,4 @@ cscope.*
 tags
 prj.cfg
 out
+*.swp

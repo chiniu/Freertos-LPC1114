@@ -13,9 +13,9 @@
 #define CONFIG_ENABLE_DRIVER_CRP						1
 #define CONFIG_CRP_SETTING_NO_CRP						1
 
-#define CONFIG_ENABLE_DRIVER_UART						1
+#define CONFIG_ENABLE_DRIVER_UART						2
 #define CONFIG_UART_DEFAULT_UART_IRQHANDLER				1
-#define CONFIG_UART_ENABLE_INTERRUPT					1
+#define CONFIG_UART_ENABLE_INTERRUPT					0
 #define CONFIG_UART_ENABLE_TX_INTERRUPT                                 0
 #define UART_BAUD 115200
 
@@ -31,6 +31,7 @@
 #define CONFIG_ENABLE_DRIVER_PRINTF                     1
 #define DEBUG                                             1 
 
+#undef CONFIG_HALL_SENSOR	                        1
 
  /* DRIVER_CONFIG_H_ */
 #endif

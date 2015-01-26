@@ -168,11 +168,17 @@ void main_blinky( void )
 	/* Create the queue. */
 	xQueue = xQueueCreate( mainQUEUE_LENGTH, sizeof( unsigned long ) );
 
+#ifdef CONFIG_HALL_SENSOR
 	xSem = xSemaphoreCreateMutex();
-
+#endif
         debug_printf("blinky start!\n");
 
+#ifdef CONFIG_HALL_SENSOR
 	if( xQueue != NULL & xSem != NULL)
+#else
+
+	if( xQueue != NULL )
+#endif
 	{
 		/* Start the two tasks as described in the comments at the top of this
 		file. */
@@ -185,9 +191,9 @@ void main_blinky( void )
 
 		xTaskCreate( prvQueueSendTask, "TX", configMINIMAL_STACK_SIZE, ( void * ) mainQUEUE_SEND_PARAMETER, mainQUEUE_SEND_TASK_PRIORITY, NULL );
 
-
+#ifdef CONFIG_HALL_SENSOR
 		xTaskCreate(prvHallTask, "Hall", configMINIMAL_STACK_SIZE, ( void * ) mainHall_RECEIVE_PARAMETER, mainHall_RECEIVE_TASK_PRIORITY, NULL); 
-
+#endif
 		/* Start the tasks and timer running. */
 		vTaskStartScheduler();
 	}

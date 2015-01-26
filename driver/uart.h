@@ -11,7 +11,7 @@
 #ifndef __UART_H 
 #define __UART_H
 
-#if CONFIG_ENABLE_DRIVER_UART==1
+#if CONFIG_ENABLE_DRIVER_UART==1 ||  CONFIG_ENABLE_DRIVER_UART==2
 
 #define RS485_ENABLED		0
 #define TX_INTERRUPT		0		/* 0 if TX uses polling, 1 interrupt driven. */

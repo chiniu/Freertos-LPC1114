@@ -11,6 +11,7 @@
 #include "FreeRTOS.h"
 #include "queue.h"
 #include "semphr.h"
+#include "task.h"
 
 #include "driver_config.h"
 #if CONFIG_ENABLE_DRIVER_UART==2
@@ -23,8 +24,16 @@ volatile uint8_t  UARTTxEmpty = 1;
 volatile uint32_t UARTCount = 0;
 
 volatile uint32_t TxIdx = 0;
+volatile uint32_t TxWIdx = 0;
 uint8_t  *TxBuffer;
 static SemaphoreHandle_t xTxSem = NULL;
+static QueueHandle_t xTxQueue = NULL;
+volatile uint32_t DataSend = 0;
+
+
+#define UART_TX_PARAMETER			( 0x5566UL )
+#define	UART_TX_PRIORITY		( tskIDLE_PRIORITY + 1 )
+static void UartTxTask( void *pvParameters );
 
 #if CONFIG_UART_DEFAULT_UART_IRQHANDLER==1
 /*****************************************************************************
@@ -40,6 +49,8 @@ void UART_IRQHandler(void)
 {
 	uint8_t IIRValue, LSRValue;
 	uint8_t Dummy = Dummy;
+	BaseType_t xHigherPriorityTaskWoken;
+	xHigherPriorityTaskWoken = pdFALSE;
 
 	IIRValue = LPC_UART->IIR;
 		
@@ -100,12 +111,63 @@ void UART_IRQHandler(void)
 		{
 		  UARTTxEmpty = 0;
 		}
+		xQueueSendFromISR( xTxQueue, NULL, &xHigherPriorityTaskWoken );
+	}
+
+
+	/* Now the buffer is empty we can switch context if necessary. */
+	if( xHigherPriorityTaskWoken )
+	{
+		/* Actual macro used here is port specific. */
+		taskYIELD ();
 	}
 	return;
 }
 #endif
 
 
+static void UartTxTask( void *pvParameters )
+{
+
+	unsigned long ulReceivedValue;
+	/* Check the task parameter is as expected. */
+	configASSERT( ( ( unsigned long ) pvParameters ) == UART_TX_PARAMETER );
+
+	for( ;; )
+	{
+#if 0
+		/* Wait until something arrives in the queue - this task will block
+		indefinitely provided INCLUDE_vTaskSuspend is set to 1 in
+		FreeRTOSConfig.h. */
+		xQueueReceive( xQueue, &ulReceivedValue, portMAX_DELAY );
+
+		/*  To get here something must have been received from the queue, but
+		is it the expected value?  If it is, toggle the LED. */
+		if( ulReceivedValue == 100UL )
+		{
+			vMainToggleLED();
+			ulReceivedValue = 0U;
+		}
+#endif
+		if( DataSend == 1 && UARTTxEmpty == 1){
+			if(xSemaphoreTake(xTxSem, 0)  == pdTRUE){
+
+				LPC_UART->THR = TxBuffer[TxWIdx];
+				if(TxWIdx == (TxIdx -1))
+					DataSend = 0;
+				TxWIdx++;
+				UARTTxEmpty = 0;	/* not empty in the THR until it shifts out */
+
+				xSemaphoreGive(xTxSem);
+			}
+
+		}else{
+
+		}
+
+
+	}
+}
 
 /*****************************************************************************
 ** Function name:		UARTInit
@@ -164,7 +226,15 @@ void UARTInit(uint32_t baudrate)
 	if(TxBuffer == NULL){
 		return ;
 	}
- 
+
+	xTxQueue = xQueueCreate( 2, 0 );
+	if(xTxQueue == NULL){
+		return ;
+	}
+
+	xTaskCreate( UartTxTask, "UartTX", configMINIMAL_STACK_SIZE, ( void * ) UART_TX_PARAMETER, UART_TX_PRIORITY, NULL );
+
+
 
 #if CONFIG_UART_ENABLE_INTERRUPT==1
 	/* Enable the UART Interrupt */
@@ -194,7 +264,31 @@ void UARTSend(uint8_t *BufferPtr, uint32_t Length)
 	if( xTxSem == NULL ){
 		return;
 	}
-  wlen = Length;
+	if(xSemaphoreTake(xTxSem, 0)  == pdTRUE){
+		while(Length > 0){
+			if(Length + TxIdx <= TXBUFF_LEN){
+				wlen = Length;
+				memcpy(TxBuffer+TxIdx, BufferPtr, wlen);
+				Length -= wlen;				
+				TxIdx += wlen;
+			}else{
+				wlen = TXBUFF_LEN - TxIdx;
+				memcpy(TxBuffer+TxIdx, BufferPtr, wlen); 
+				Length -= wlen;				
+				TxIdx = 0;
+			} 
+		}
+		DataSend = 1;
+		xSemaphoreGive(xTxSem);
+	}
+	xQueueSend( xTxQueue, NULL, 0U );
+	return;
+}
+#if 0
+void UARTSend(uint8_t *BufferPtr, uint32_t Length)
+{
+  uint32_t len = Length;
+  uint8_t *Ptr = BufferPtr;
   while ( Length != 0 )
   {
 	  /* THRE status, contain valid data */
@@ -210,26 +304,11 @@ void UARTSend(uint8_t *BufferPtr, uint32_t Length)
       BufferPtr++;
       Length--;
   }
-  Length = wlen;
-
-	if(xSemaphoreTake(xTxSem, 0)  == pdTRUE){
-		while(Length > 0){
-			if(Length + TxIdx <= TXBUFF_LEN){
-				wlen = Length;
-				memcpy(TxBuffer+TxIdx, BufferPtr, wlen);
-				Length -= wlen;				
-				TxIdx += wlen;
-			}else{
-				wlen = TXBUFF_LEN - TxIdx;
-				memcpy(TxBuffer+TxIdx, BufferPtr, wlen); 
-				Length -= wlen;				
-				TxIdx = 0;
-			} 
-		}
-		xSemaphoreGive(xTxSem);
-	}
-	return;
+  UARTSend2(Ptr, len);
+  return;
 }
+#endif
+
 #endif
 
 /******************************************************************************

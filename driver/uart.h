@@ -49,7 +49,11 @@
 void ModemInit( void );
 void UARTInit(uint32_t Baudrate);
 void UART_IRQHandler(void);
+#if CONFIG_ENABLE_DRIVER_UART==2
+void UARTSend(char c, uint32_t Length);
+#else
 void UARTSend(uint8_t *BufferPtr, uint32_t Length);
+#endif
 
 #endif
 #endif /* end __UART_H */

@@ -15,8 +15,8 @@
 
 #define CONFIG_ENABLE_DRIVER_UART						2
 #define CONFIG_UART_DEFAULT_UART_IRQHANDLER				1
-#define CONFIG_UART_ENABLE_INTERRUPT					0
-#define CONFIG_UART_ENABLE_TX_INTERRUPT                                 0
+#define CONFIG_UART_ENABLE_INTERRUPT					1
+#define CONFIG_UART_ENABLE_TX_INTERRUPT                                 1
 #define UART_BAUD 115200
 
 #define CONFIG_ENABLE_DRIVER_GPIO						1

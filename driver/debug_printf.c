@@ -36,12 +36,13 @@
 // Defining these two symbols enables semihosting in the Code Red debugger
 volatile int fseek, fclose;
 
-#if CONFIG_DRIVER_PRINTF_REDLIBV2!=1
+#if 0 
 static char debug_write_buf[DEBUG_OUTPUT_BUFFER_SIZE];
 static uint8_t debug_buf_read_index, debug_buf_write_index;
 
 int _debug_printf_flush()
 {
+#if 1
 	uint8_t len, written;
 
 	len = debug_buf_read_index <= debug_buf_write_index
@@ -54,7 +55,8 @@ int _debug_printf_flush()
 	// The following if() disables semihosted writes when there is no hosted debugger
 	// Otherwise, the target will halt when the semihost __write is called
 	if(ISDEBUGACTIVE())
-	    written = _write(0, &debug_write_buf[debug_buf_read_index], len);
+              UARTSend( &debug_write_buf[debug_buf_read_index], len);
+	   //  written = _write(0, &debug_write_buf[debug_buf_read_index], len);
 	else
             written = 0;
 
@@ -63,6 +65,9 @@ int _debug_printf_flush()
 	if(written != len)
 		return written;
 	return _debug_printf_flush() + written;
+#else
+	return 0;
+#endif
 }
 
 int _debug_putchar(char c)
@@ -91,8 +96,13 @@ int _debug_putchar(char c)
 #else
 int _debug_putchar(char c)
 {
+#if CONFIG_ENABLE_DRIVER_UART==1
 	//__sys_write(0, &c, 1);
 	UARTSend(&c, 1);
+#else
+
+	UARTSend(c, 1);
+#endif
 
 	return 1;
 }

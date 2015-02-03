@@ -170,6 +170,8 @@ void UARTInit(uint32_t baudrate)
   LPC_UART->LCR = 0x83;             /* 8 bits, no Parity, 1 Stop bit */
   regVal = LPC_SYSCON->UARTCLKDIV;
 
+  LPC_UART->FCR = 0x7; /* Enable FIFO */
+
   Fdiv = (((SystemCoreClock*LPC_SYSCON->SYSAHBCLKDIV)/regVal)/16)/baudrate ;	/*baud rate */
 
   LPC_UART->DLM = Fdiv / 256;							

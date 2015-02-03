@@ -49,8 +49,7 @@ void UART_IRQHandler(void)
 {
 	uint8_t IIRValue, LSRValue;
 	uint8_t Dummy = Dummy;
-	BaseType_t xHigherPriorityTaskWoken;
-	xHigherPriorityTaskWoken = pdFALSE;
+        long lHigherPriorityTaskWoken = pdFALSE;
 
 	IIRValue = LPC_UART->IIR;
 		
@@ -103,23 +102,10 @@ void UART_IRQHandler(void)
 		/* THRE interrupt */
 		LSRValue = LPC_UART->LSR;		/* Check status in the LSR to see if
 						valid data in U0THR or not */
-		if (LSRValue & LSR_THRE)
-		{
-		  UARTTxEmpty = 1;
+		if (LSRValue & LSR_THRE){
+			xSemaphoreGiveFromISR( xTxSem, &lHigherPriorityTaskWoken );
 		}
-		else
-		{
-		  UARTTxEmpty = 0;
-		}
-		xQueueSendFromISR( xTxQueue, NULL, &xHigherPriorityTaskWoken );
-	}
-
-
-	/* Now the buffer is empty we can switch context if necessary. */
-	if( xHigherPriorityTaskWoken )
-	{
-		/* Actual macro used here is port specific. */
-		taskYIELD ();
+		portEND_SWITCHING_ISR( lHigherPriorityTaskWoken );
 	}
 	return;
 }
@@ -129,43 +115,28 @@ void UART_IRQHandler(void)
 static void UartTxTask( void *pvParameters )
 {
 
-	unsigned long ulReceivedValue;
+	uint32_t fifocnt = 0;
+	const TickType_t xDelay = 100 / portTICK_PERIOD_MS;
 	/* Check the task parameter is as expected. */
 	configASSERT( ( ( unsigned long ) pvParameters ) == UART_TX_PARAMETER );
 
 	for( ;; )
 	{
-#if 0
-		/* Wait until something arrives in the queue - this task will block
-		indefinitely provided INCLUDE_vTaskSuspend is set to 1 in
-		FreeRTOSConfig.h. */
-		xQueueReceive( xQueue, &ulReceivedValue, portMAX_DELAY );
-
-		/*  To get here something must have been received from the queue, but
-		is it the expected value?  If it is, toggle the LED. */
-		if( ulReceivedValue == 100UL )
-		{
-			vMainToggleLED();
-			ulReceivedValue = 0U;
-		}
-#endif
-		if( DataSend == 1 && UARTTxEmpty == 1){
-			if(xSemaphoreTake(xTxSem, 0)  == pdTRUE){
-
-				LPC_UART->THR = TxBuffer[TxWIdx];
-				if(TxWIdx == (TxIdx -1))
-					DataSend = 0;
-				TxWIdx++;
-				UARTTxEmpty = 0;	/* not empty in the THR until it shifts out */
-
-				xSemaphoreGive(xTxSem);
-			}
-
+		fifocnt = 0;
+		if(xSemaphoreTake(xTxSem, xDelay) == pdTRUE){
+			/* interrupt, fifo empty */
+			fifocnt = 16;
 		}else{
-
+			/* time out, write 1byte to trigger interrupt */
+			fifocnt = 1;
 		}
-
-
+		if(TxIdx != TxWIdx){
+			while(fifocnt--){
+				LPC_UART->THR = TxBuffer[TxWIdx++];
+				if(TxWIdx == TXBUFF_LEN) TxWIdx = 0;
+				if(TxWIdx == TxIdx)break;
+			}
+		}
 	}
 }
 
@@ -215,9 +186,9 @@ void UARTInit(uint32_t baudrate)
 	while (( LPC_UART->LSR & (LSR_THRE|LSR_TEMT)) != (LSR_THRE|LSR_TEMT) );
 	while ( LPC_UART->LSR & LSR_RDR )
 	{
-	regVal = LPC_UART->RBR;	/* Dump data from RX FIFO */
+		regVal = LPC_UART->RBR;	/* Dump data from RX FIFO */
 	}
-	xTxSem = xSemaphoreCreateMutex();
+	xTxSem = xSemaphoreCreateBinary();
 	if(xTxSem == NULL){
 		return ;
 	}
@@ -258,57 +229,16 @@ void UARTInit(uint32_t baudrate)
 ** Returned value:	None
 ** 
 *****************************************************************************/
-void UARTSend(uint8_t *BufferPtr, uint32_t Length)
+void UARTSend(char c , uint32_t Length)
 {
-	uint32_t wlen = 0;
-	if( xTxSem == NULL ){
+	if( xTxSem == NULL || Length != 1 ){
 		return;
 	}
-	if(xSemaphoreTake(xTxSem, 0)  == pdTRUE){
-		while(Length > 0){
-			if(Length + TxIdx <= TXBUFF_LEN){
-				wlen = Length;
-				memcpy(TxBuffer+TxIdx, BufferPtr, wlen);
-				Length -= wlen;				
-				TxIdx += wlen;
-			}else{
-				wlen = TXBUFF_LEN - TxIdx;
-				memcpy(TxBuffer+TxIdx, BufferPtr, wlen); 
-				Length -= wlen;				
-				TxIdx = 0;
-			} 
-		}
-		DataSend = 1;
-		xSemaphoreGive(xTxSem);
-	}
-	xQueueSend( xTxQueue, NULL, 0U );
+	TxBuffer[TxIdx++] = c;
+	if(TxIdx >= TXBUFF_LEN)
+		TxIdx = 0;
 	return;
 }
-#if 0
-void UARTSend(uint8_t *BufferPtr, uint32_t Length)
-{
-  uint32_t len = Length;
-  uint8_t *Ptr = BufferPtr;
-  while ( Length != 0 )
-  {
-	  /* THRE status, contain valid data */
-#if CONFIG_UART_ENABLE_TX_INTERRUPT==1
-	  /* Below flag is set inside the interrupt handler when THRE occurs. */
-      while ( !(UARTTxEmpty & 0x01) );
-	  LPC_UART->THR = *BufferPtr;
-      UARTTxEmpty = 0;	/* not empty in the THR until it shifts out */
-#else
-	  while ( !(LPC_UART->LSR & LSR_THRE) );
-	  LPC_UART->THR = *BufferPtr;
-#endif
-      BufferPtr++;
-      Length--;
-  }
-  UARTSend2(Ptr, len);
-  return;
-}
-#endif
-
 #endif
 
 /******************************************************************************
